@@ -60,6 +60,54 @@ const toggleShipPlacementButton = () => {
   }
 }
 
+const checkForCorrectConfiguration = (positions) => {
+  console.log(positions)
+  positions.sort((a,b) => {
+    if (a[0] !== b[0]) {
+      return a[0] - b[0]
+    } else {
+      return a[1] - b[1]
+    }
+  })
+
+  let pointer = 0;
+
+  if (positions[0][0] === positions[1][0]) {
+    while (pointer < positions.length - 1) {
+      if (positions[pointer][1] + 1 !== positions[pointer + 1][1] || positions[pointer + 1][0] !== positions[pointer][0]) {
+        return false
+      }
+      pointer++      
+    }
+    return true
+  } else if (positions[0][1] === positions[1][1]) {
+    while (pointer < positions.length - 1) {
+      if (positions[pointer][0] + 1 !== positions[pointer + 1][0] || positions[pointer + 1][1] !== positions[pointer][1]) {
+        return false
+      }
+      pointer++
+    }
+    return true
+  }
+
+  return false
+}
+
+const shipPlacementButtonClickHandler = (game) => {
+  console.log(game)
+  let positionsMap = game.spotsSelected.map(position => {
+    position = position.split(',')
+    position[0] = Number(position[0]);
+    position[1] = Number(position[1]);
+    return position
+  })
+  if (!checkForCorrectConfiguration(positionsMap)) {
+    console.log('wrong')
+  } else {
+    console.log('yes')
+  }
+}
+
 class Ship {
   constructor(coordinates) {
     this.positions = initializeShipPositions(coordinates);
@@ -100,9 +148,9 @@ createGridView(10, 10)
 const game = new Game(10, 10)
 
 const playerSquares = document.getElementsByClassName('playerSquare')
+const shipPlacementButton = document.getElementById('shipPlacementButton')
 
-console.log(playerSquares)
-
+//player square click logic
 for (let i = 0; i < game.height * game.width; i++) {
   let square = playerSquares[i];
   square.addEventListener('click', function() {
@@ -131,6 +179,17 @@ for (let i = 0; i < game.height * game.width; i++) {
     }
   })
 }
+
+shipPlacementButton.addEventListener('click', function() {
+  shipPlacementButtonClickHandler(game)})
+
+
+
+
+
+//opponent square click logic
+
+
 
 // playerSquares.forEach(square => {
 //   square.addEventListener('click', function() {
