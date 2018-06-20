@@ -1,8 +1,8 @@
 const playerGrid = document.getElementById('playerGrid');
 const opponentGrid = document.getElementById('opponentGrid');
-const rowDict = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8: 'I', 9: 'J'}
+const rowDict = {0: 'A', 1: 'B', 2: 'C', 3: 'D', 4: 'E', 5: 'F', 6: 'G', 7: 'H', 8: 'I', 9: 'J'};
 const shipsPlacedToInfoMap = [{name: 'carrier', spots: 5}, {name: 'battleship', spots: 4}, {name: 'submarine', spots: 3},
-{name: 'destroyer', spots: 3}, {name: 'patrol boat', spots: 2}]
+{name: 'destroyer', spots: 3}, {name: 'patrol boat', spots: 2}];
 let newPlayerRow, newPlayerColumn, newOpponentRow, newOpponentColumn;
 
 //creating the grid views
@@ -29,7 +29,7 @@ const createGridView = (height, width) => {
   }
 }
 
-const initializePlayerGrid = (height, width) => {
+const initializePlayerTracker = (height, width) => {
   let output = {};
 
   for (let row = 0; row < height; row++) {
@@ -94,6 +94,63 @@ const checkForCorrectConfiguration = (positions) => {
   return false
 }
 
+const constructComputerShips = (game) => {
+  const shipSizes = [5, 4, 3, 3, 2]
+  const directionArray = ['horizontal', 'vertical']
+  const filledCache = {};
+  let shipInfo, found, randomDirection, potentialCoordinates, randomRow, randomColumn, filled;
+
+  shipSizes.forEach((size, index) => {
+    let randomDirection = directionArray[getRandomNumberBelow(2)]
+    let shipInfo = shipsPlacedToInfoMap[index]
+    let found = false
+
+    if (randomDirection === 'horizontal') {
+      while (!found) {
+        randomRow = getRandomNumberBelow(game.width);
+        randomColumn = getRandomNumberBelow(game.height - size);
+        randomCoordinates = [randomRow, randomColumn];
+        potentialCoordinates = [];
+        for (let idx = 0; idx < size; idx++) {
+          if (!filledCache[[randomRow, randomColumn + idx]]) {
+            potentialCoordinates.push([randomRow, randomColumn + idx])
+          }
+        }
+        if (potentialCoordinates.length === size) {
+          game.addNewShip(potentialCoordinates, 'opponent', shipInfo.name)
+          potentialCoordinates.forEach(coordinates => {
+            filledCache[coordinates] = true
+          })
+          found = true;
+        }
+      }
+    } else {
+      while (!found) {
+        randomRow = getRandomNumberBelow(game.width - size);
+        randomColumn = getRandomNumberBelow(game.height)
+        randomCoordinates = [randomRow, randomColumn];
+        console.log(randomCoordinates)
+        potentialCoordinates = [];
+        for (let idx = 0 ; idx < size; idx++) {
+          if (!filledCache[[randomRow + idx, randomColumn]]) {
+            potentialCoordinates.push([randomRow + idx, randomColumn])
+          }
+        }
+        if (potentialCoordinates.length === size) {
+          game.addNewShip(potentialCoordinates, 'opponent', shipInfo.name)
+          potentialCoordinates.forEach(coordinates => {
+            filledCache[coordinates] = true
+          })
+          found = true;
+        }
+      }
+    }
+  })
+  console.log(filledCache)
+  console.log(game)
+
+}
+
 const shipPlacementButtonClickHandler = (game) => {
   let positionsMap = game.spotsSelected.map(position => {
     position = position.split(',')
@@ -113,8 +170,9 @@ const shipPlacementButtonClickHandler = (game) => {
     game.addNewShip(game.spotsSelected, 'player', shipsPlacedToInfoMap[numberShipsPlaced].name)
     game.resetSpotsSelected()
     if (game.getNumberShipsPlaced() === 5) {
-      game.state = 'computerChoose'
-      game.setDisplayMessage('Computer will now choose their ships')
+      constructComputerShips(game)
+      game.state = 'playerTurn'
+      game.setDisplayMessage('Choose an enemy square to attack')
     } else {
       game.setDisplayMessage(`Choose your ${shipsPlacedToInfoMap[numberShipsPlaced + 1].name} placement (Pick ${shipsPlacedToInfoMap[numberShipsPlaced + 1].spots})`)
       console.log(game)
@@ -122,6 +180,12 @@ const shipPlacementButtonClickHandler = (game) => {
   }
   toggleShipPlacementButton()
 }
+
+const getRandomNumberBelow = (max) => {
+  return Math.floor(Math.random(0, 1) * max)
+}
+
+
 
 class Ship {
   constructor(coordinates, name) {
@@ -148,8 +212,8 @@ class Game {
     this.state = 'playerChoose';
     this.width = width;
     this.height = height;
-    this.playerGrid = initializePlayerGrid()
-    this.opponentGrid = initializePlayerGrid()
+    this.playerTracker = initializePlayerTracker(this.height, this.width)
+    this.opponentTracker = initializePlayerTracker(this.height, this.width)
     this.playerShips = [];
     this.opponentShips = [];
     this.spotsSelected = [];
@@ -188,6 +252,7 @@ createGridView(10, 10)
 const game = new Game(10, 10)
 
 const playerSquares = document.getElementsByClassName('playerSquare')
+const computerSquares = document.getElementsByClassName('opponentSquare')
 const shipPlacementButton = document.getElementById('shipPlacementButton')
 
 //player square click logic
@@ -218,21 +283,18 @@ for (let i = 0; i < game.height * game.width; i++) {
     }
   })
 }
+
 //computer square click logic
+for (let i = 0; i < game.height * game.width; i++) {
+  let square = computerSquares[i];
+  square.addEventListener('click', function() {
+    if (game.state === 'playerTurn') {
+      console.log(square.id)
+    }
+  })
+}
+
+
 
 shipPlacementButton.addEventListener('click', function() {
   shipPlacementButtonClickHandler(game)})
-
-//opponent square click logic
-
-// playerSquares.forEach(square => {
-//   square.addEventListener('click', function() {
-//     if (game.state === 'playerChoose') {
-//       let numbershipsChosen = game.spotsSelected.length;
-//       let shipsRequired = shipsPlacedToInfoMap[numbershipsChosen].spots;
-//       let currentColor = square.style.backgroundColor
-
-//       console.log(currentColor)
-//     }
-//   })
-// })
