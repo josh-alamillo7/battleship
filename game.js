@@ -5,8 +5,6 @@ const shipsPlacedToInfoMap = [{name: 'carrier', spots: 5}, {name: 'battleship', 
 {name: 'destroyer', spots: 3}, {name: 'patrol boat', spots: 2}]
 let newPlayerRow, newPlayerColumn, newOpponentRow, newOpponentColumn;
 
-
-
 //creating the grid views
 
 const createGridView = (height, width) => {
@@ -39,6 +37,8 @@ const initializePlayerGrid = (height, width) => {
       output[[row, col]] = null
     }
   }
+
+  return output
 }
 
 const initializeShipPositions = (positions) => {
@@ -48,6 +48,8 @@ const initializeShipPositions = (positions) => {
     output.push({position: position,
       hit: false});
   })
+
+  return output
 }
 
 const toggleShipPlacementButton = () => {
@@ -61,7 +63,6 @@ const toggleShipPlacementButton = () => {
 }
 
 const checkForCorrectConfiguration = (positions) => {
-  console.log(positions)
   positions.sort((a,b) => {
     if (a[0] !== b[0]) {
       return a[0] - b[0]
@@ -94,23 +95,51 @@ const checkForCorrectConfiguration = (positions) => {
 }
 
 const shipPlacementButtonClickHandler = (game) => {
-  console.log(game)
   let positionsMap = game.spotsSelected.map(position => {
     position = position.split(',')
     position[0] = Number(position[0]);
     position[1] = Number(position[1]);
     return position
   })
+  let numberShipsPlaced = game.getNumberShipsPlaced();
+
   if (!checkForCorrectConfiguration(positionsMap)) {
-    console.log('wrong')
+    game.setDisplayMessage(`Incorrect configuration. The ${shipsPlacedToInfoMap[numberShipsPlaced].name} needs 
+      ${shipsPlacedToInfoMap[numberShipsPlaced].spots} spots on the same row or column. Please try again!`)
   } else {
-    console.log('yes')
+    game.spotsSelected.forEach(spot => {
+      document.getElementById('P' + spot).style.backgroundColor = 'grey';
+    })
+    game.addNewShip(game.spotsSelected, 'player', shipsPlacedToInfoMap[numberShipsPlaced].name)
+    game.resetSpotsSelected()
+    if (game.getNumberShipsPlaced() === 5) {
+      game.state = 'computerChoose'
+      game.setDisplayMessage('Computer will now choose their ships')
+    } else {
+      game.setDisplayMessage(`Choose your ${shipsPlacedToInfoMap[numberShipsPlaced + 1].name} placement (Pick ${shipsPlacedToInfoMap[numberShipsPlaced + 1].spots})`)
+      console.log(game)
+    } 
   }
+  toggleShipPlacementButton()
 }
 
 class Ship {
-  constructor(coordinates) {
+  constructor(coordinates, name) {
     this.positions = initializeShipPositions(coordinates);
+    this.name = name
+  }
+
+  checkIfShipIsSunk() {
+    for (let position = 0; position < this.positions.length; position++) {
+      if (!position.hit) {
+        return false
+      }
+    }
+    return true
+  }
+
+  positionHit(position) {
+    this.positions[position].hit = true;
   }
 }
 
@@ -128,8 +157,8 @@ class Game {
     this.setDisplayMessage('Choose your carrier placement (Pick 5)')
   }
 
-  addNewShip(coordinates, player) {
-    const newShip = new Ship(coordinates)
+  addNewShip(coordinates, player, name) {
+    const newShip = new Ship(coordinates, name)
     if (player === 'player') {
       this.playerShips.push(newShip)
     } else {
@@ -137,11 +166,22 @@ class Game {
     } 
   }
 
+  getNumberSpotsSelected() {
+    return this.spotsSelected.length;
+  }
+
+  getNumberShipsPlaced() {
+    return this.playerShips.length;
+  }
+
   setDisplayMessage(message) {
     let displayInfo = document.getElementById('displayInfo')
     displayInfo.innerHTML = message;
   }
 
+  resetSpotsSelected() {
+    this.spotsSelected = []
+  }
 }
 
 createGridView(10, 10)
@@ -155,8 +195,8 @@ for (let i = 0; i < game.height * game.width; i++) {
   let square = playerSquares[i];
   square.addEventListener('click', function() {
     if (game.state === 'playerChoose') {
-      let numberSpotsChosen = game.spotsSelected.length;
-      let shipIndex = game.playerShips.length;
+      let numberSpotsChosen = game.getNumberSpotsSelected();
+      let shipIndex = game.getNumberShipsPlaced();
       let spotsRequired = shipsPlacedToInfoMap[shipIndex].spots;
       let squareColor = square.style.backgroundColor;
 
@@ -169,7 +209,6 @@ for (let i = 0; i < game.height * game.width; i++) {
       } else if (squareColor === 'green') {
         square.style.backgroundColor = 'white';
         game.spotsSelected = game.spotsSelected.filter((spot) => {
-          console.log(spot === square.id.slice(1))
           return spot !== square.id.slice(1)
         })
         if (shipPlacementButton.style.display = 'block') {
@@ -179,17 +218,12 @@ for (let i = 0; i < game.height * game.width; i++) {
     }
   })
 }
+//computer square click logic
 
 shipPlacementButton.addEventListener('click', function() {
   shipPlacementButtonClickHandler(game)})
 
-
-
-
-
 //opponent square click logic
-
-
 
 // playerSquares.forEach(square => {
 //   square.addEventListener('click', function() {
@@ -202,8 +236,3 @@ shipPlacementButton.addEventListener('click', function() {
 //     }
 //   })
 // })
-
-
-
-
-
