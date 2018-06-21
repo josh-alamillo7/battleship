@@ -23,6 +23,7 @@ const createGridView = (height, width) => {
       newPlayerColumn.className = "playerSquare";
       newPlayerColumn.style.backgroundColor = "white";
       newOpponentColumn.className = "opponentSquare";
+      newOpponentColumn.style.backgroundColor = "white";
       newPlayerColumn.id = "P" + row + ',' + col
       newOpponentColumn.id = "O" + row + ',' + col
     }
@@ -42,23 +43,21 @@ const initializePlayerTracker = (height, width) => {
 }
 
 const initializeShipPositions = (positions) => {
-  let output = []
+  let output = {}
 
   positions.forEach((position) => {
-    output.push({position: position,
-      hit: false});
+    output[position] = true
   })
 
   return output
 }
 
-const toggleShipPlacementButton = () => {
-  const shipPlacementButton = document.getElementById('shipPlacementButton');
+const toggleButton = (button) => {
 
-  if (shipPlacementButton.style.display === 'none') {
-    shipPlacementButton.style.display = 'block'
+  if (button.style.display === 'none') {
+    button.style.display = 'block'
   } else {
-    shipPlacementButton.style.display = 'none'
+    button.style.display = 'none'
   }
 }
 
@@ -151,7 +150,21 @@ const constructComputerShips = (game) => {
 
 }
 
-const shipPlacementButtonClickHandler = (game) => {
+const turnAllSunkShipsRed = (shipPositions, player) => {
+  let firstCharId, sunkSquare;
+  if (player === 'player') {
+    firstCharId = 'O'
+  } else {
+    firstCharId = 'P'
+  }
+
+  shipPositions.forEach(position => {
+    sunkSquare = document.getElementById(`${firstCharId}${position}`)
+    sunkSquare.style.backgroundColor = 'red'
+  })
+}
+
+const shipPlacementButtonClickHandler = (game, button) => {
   let positionsMap = game.spotsSelected.map(position => {
     position = position.split(',')
     position[0] = Number(position[0]);
@@ -178,14 +191,23 @@ const shipPlacementButtonClickHandler = (game) => {
       console.log(game)
     } 
   }
-  toggleShipPlacementButton()
+  toggleButton(button)
 }
 
 const getRandomNumberBelow = (max) => {
   return Math.floor(Math.random(0, 1) * max)
 }
 
+const doComputerTurn = (game) => {
+  
 
+
+  setTimeout(function() {
+    game.setDisplayMessage('Computer did something. Your turn!')
+    game.state = 'playerTurn'
+  }, 1000)
+
+}
 
 class Ship {
   constructor(coordinates, name) {
@@ -194,16 +216,23 @@ class Ship {
   }
 
   checkIfShipIsSunk() {
-    for (let position = 0; position < this.positions.length; position++) {
-      if (!position.hit) {
+    let currPosition;
+    const allPositions = Object.keys(this.positions)
+    for (let position = 0; position < allPositions.length; position++) {
+      currPosition = allPositions[position]
+      if (this.positions[currPosition]) {
         return false
       }
     }
     return true
   }
 
+  getAllPositions() {
+    return Object.keys(this.positions)
+  }
+
   positionHit(position) {
-    this.positions[position].hit = true;
+    this.positions[position] = false;
   }
 }
 
@@ -212,11 +241,15 @@ class Game {
     this.state = 'playerChoose';
     this.width = width;
     this.height = height;
-    this.playerTracker = initializePlayerTracker(this.height, this.width)
-    this.opponentTracker = initializePlayerTracker(this.height, this.width)
+    this.computer = new Computer()
     this.playerShips = [];
     this.opponentShips = [];
+    this.remainingPlayerShips = 5;
+    this.remainingOpponentShips = 5;
+    this.playerSelectedSquare = false;
+    this.playerSelect = {coordinates: null, square: null};
     this.spotsSelected = [];
+    this.hitShip = null;
 
     this.setDisplayMessage('Choose your carrier placement (Pick 5)')
   }
@@ -230,12 +263,50 @@ class Game {
     } 
   }
 
+  clearPlayerSelect() {
+    this.playerSelect.coordinates = null;
+    this.playerSelect.square = null;
+    this.playerSelectedSquare = false;
+  }
+
+  checkIfHit(attackCoordinates, player) {
+    let ships, currShip, currPosition;
+    if (player === 'player') {
+      ships = this.playerShips;
+    } else {
+      ships = this.opponentShips;
+    }
+    for (let j = 0; j < ships.length; j++) {
+      currShip = game.opponentShips[j];
+      let allPositions = Object.keys(currShip.positions);
+      for (let k = 0; k < allPositions.length; k++) {
+        currPosition = allPositions[k].split(',');
+        if (currPosition[0] === attackCoordinates[0] && currPosition[1] === attackCoordinates[1]) {
+          currShip.positionHit([Number(attackCoordinates[0]), Number(attackCoordinates[1])])
+          this.hitShip = currShip
+          return true
+        }
+      }   
+    }
+    return false
+  }
+
+  checkifGameOver() {
+    return (!(this.remainingPlayerShips && this.remainingOpponentShips))
+  }
+
   getNumberSpotsSelected() {
     return this.spotsSelected.length;
   }
 
   getNumberShipsPlaced() {
     return this.playerShips.length;
+  }
+
+  playerSelectSquare(coordinates, square) {
+    this.playerSelect.square = square;
+    this.playerSelect.coordinates = coordinates;
+    this.playerSelectedSquare = true;
   }
 
   setDisplayMessage(message) {
@@ -248,12 +319,43 @@ class Game {
   }
 }
 
+class Computer {
+  constructor() {
+    this.tracker = initializePlayerTracker(this.height, this.width);
+  }
+
+  chooseRandomUnattackedSpot() {
+    const unattackedSpots = Object.keys(this.tracker).filter(spot => {
+      this.tracker[spot] = null
+    })
+    const randomIndex = getRandomNumberBelow(unattackedSpots.length)
+    return unattackedSpots[randomIndex]
+  }
+
+  chooseRandomHitSpot() {
+    const hitSpots = Object.keys(this.tracker).filter(spot => {
+      this.tracker[spot] = 'hit'
+    })
+    if (hitSpots.length > 0) {
+      const randomIndex = getRandomNumberBelow(hitSpots.length)
+      return hitSpots[randomIndex]
+    }
+    return null
+  }
+
+  updateSquareStatus(square, status) {
+    this.tracker[square] = status
+  }
+ 
+}
+
 createGridView(10, 10)
 const game = new Game(10, 10)
 
 const playerSquares = document.getElementsByClassName('playerSquare')
 const computerSquares = document.getElementsByClassName('opponentSquare')
 const shipPlacementButton = document.getElementById('shipPlacementButton')
+const attackOpponentButton = document.getElementById('attackOpponentButton')
 
 //player square click logic
 for (let i = 0; i < game.height * game.width; i++) {
@@ -269,7 +371,7 @@ for (let i = 0; i < game.height * game.width; i++) {
         game.spotsSelected.push(square.id.slice(1))
         square.style.backgroundColor = 'green';
         if (numberSpotsChosen + 1 === spotsRequired) {
-          toggleShipPlacementButton()
+          toggleButton(shipPlacementButton)
         }
       } else if (squareColor === 'green') {
         square.style.backgroundColor = 'white';
@@ -277,7 +379,7 @@ for (let i = 0; i < game.height * game.width; i++) {
           return spot !== square.id.slice(1)
         })
         if (shipPlacementButton.style.display = 'block') {
-          toggleShipPlacementButton()
+          toggleButton(shipPlacementButton)
         }
       }
     }
@@ -287,14 +389,73 @@ for (let i = 0; i < game.height * game.width; i++) {
 //computer square click logic
 for (let i = 0; i < game.height * game.width; i++) {
   let square = computerSquares[i];
+  let currShip, currPositions;
   square.addEventListener('click', function() {
-    if (game.state === 'playerTurn') {
-      console.log(square.id)
+    if (square.style.backgroundColor === 'green') {
+      game.playerSelectedSquare = false;
+      square.style.backgroundColor = 'white';
+      toggleButton(attackOpponentButton);
+      return
+    }
+    if (game.state === 'playerTurn' && square.style.backgroundColor === 'white') {
+      if (!game.playerSelectedSquare) {
+        square.style.backgroundColor = 'green';
+        let coordinates = square.id.slice(1).split(',')
+        game.playerSelectSquare(coordinates, square)
+        toggleButton(attackOpponentButton)
+      }        
     }
   })
 }
 
 
 
+const attackOpponentButtonClickHandler = (game, attackCoordinates, square, button) => {
+  game.clearPlayerSelect();
+  toggleButton(button)
+  let hit = false;
+  if (game.checkIfHit(attackCoordinates, 'player')) {
+    hit = true;
+    newMessage = `HIT on ${rowDict[attackCoordinates[0]]}${attackCoordinates[1]}!`
+    if (!game.hitShip.checkIfShipIsSunk()) {
+      square.style.backgroundColor = 'orange';
+      newMessage += 'Computer is thinking 🤔';
+      game.setDisplayMessage(newMessage);
+      game.state = 'computerTurn'
+      setTimeout(function() {
+          doComputerTurn(game)
+        }, 1000)
+    } else {
+      turnAllSunkShipsRed(game.hitShip.getAllPositions(), 'player')
+      newMessage += ` SUNK ${game.hitShip.name.toUpperCase()}! `
+      game.remainingOpponentShips--
+      if (game.checkifGameOver()) {
+        game.state = "gameOver"
+        newMessage += "Game over. You win!"
+      } else {
+        newMessage += 'Computer is thinking 🤔'
+        game.state = 'computerTurn'
+        setTimeout(function() {
+          doComputerTurn(game)
+        }, 1000)        
+      }
+      game.setDisplayMessage(newMessage)
+    }       
+  }
+  if (!hit) {
+    game.setDisplayMessage(`MISS on ${rowDict[attackCoordinates[0]]}${attackCoordinates[1]}. Computer is thinking 🤔`);
+    square.style.backgroundColor = 'mediumAquaMarine';
+    game.state = 'computerTurn'
+    setTimeout(function() {
+      doComputerTurn(game)
+    }, 1000)
+  }
+}
+
 shipPlacementButton.addEventListener('click', function() {
-  shipPlacementButtonClickHandler(game)})
+  shipPlacementButtonClickHandler(game, this)
+})
+
+attackOpponentButton.addEventListener('click', function() {
+  attackOpponentButtonClickHandler(game, game.playerSelect.coordinates, game.playerSelect.square, this)
+})
