@@ -32,6 +32,7 @@ const createGridView = (height, width) => {
 
 const initializePlayerTracker = (height, width) => {
   let output = {};
+  let coordinatesAsString;
 
   for (let row = 0; row < height; row++) {
     for (let col = 0; col < width; col++) {
@@ -128,7 +129,6 @@ const constructComputerShips = (game) => {
         randomRow = getRandomNumberBelow(game.width - size);
         randomColumn = getRandomNumberBelow(game.height)
         randomCoordinates = [randomRow, randomColumn];
-        console.log(randomCoordinates)
         potentialCoordinates = [];
         for (let idx = 0 ; idx < size; idx++) {
           if (!filledCache[[randomRow + idx, randomColumn]]) {
@@ -150,9 +150,19 @@ const constructComputerShips = (game) => {
 
 }
 
-const turnAllSunkShipsRed = (shipPositions, player) => {
+const changeSquareColorOnOpponentAttack = (coordinates, result) => {
+  square = document.getElementById('P' + coordinates.join(','))
+
+  if (result === 'miss') {
+    square.style.backgroundColor = 'mediumAquaMarine';
+  } else if (result === 'hit') {
+    square.style.backgroundColor = 'orange';
+  }
+}
+
+const turnAllSunkShipsRed = (shipPositions, attackingPlayer) => {
   let firstCharId, sunkSquare;
-  if (player === 'player') {
+  if (attackingPlayer === 'player') {
     firstCharId = 'O'
   } else {
     firstCharId = 'P'
@@ -163,6 +173,14 @@ const turnAllSunkShipsRed = (shipPositions, player) => {
     sunkSquare.style.backgroundColor = 'red'
   })
 }
+
+const shuffleArray = (array) => {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = getRandomNumberBelow(i + 1);
+      [array[i], array[j]] = [array[j], array[i]]
+    }
+    return array;
+  }
 
 const shipPlacementButtonClickHandler = (game, button) => {
   let positionsMap = game.spotsSelected.map(position => {
@@ -188,7 +206,6 @@ const shipPlacementButtonClickHandler = (game, button) => {
       game.setDisplayMessage('Choose an enemy square to attack')
     } else {
       game.setDisplayMessage(`Choose your ${shipsPlacedToInfoMap[numberShipsPlaced + 1].name} placement (Pick ${shipsPlacedToInfoMap[numberShipsPlaced + 1].spots})`)
-      console.log(game)
     } 
   }
   toggleButton(button)
@@ -199,13 +216,64 @@ const getRandomNumberBelow = (max) => {
 }
 
 const doComputerTurn = (game) => {
+  let spotToAttack, centerSpot, attackDirection;
+  let computer = game.computer
   
+  if (computer.hitSpots.length > 0) {
+    shuffleArray(computer.hitSpots);
 
+    for (let i = 0; i < computer.hitSpots.length; i++) {
+      centerSpot = computer.hitSpots[i];
+      spotToAttack = game.computer.chooseAttackSpotFromCenter(centerSpot)
+      if (spotToAttack === null) {
+        computer.tracker[spotToAttack] = 'tried'
+      } else {
+        spotToAttack = spotToAttack.map(coordinate => {
+          return coordinate.toString()
+        })
+        break
+      }
+    }
+    //want to do spottoattack on each spot
+  } else {
+    spotToAttack = game.computer.chooseRandomUnattackedSpot()
+  }
+
+  outputMessage = `Computer attacked ${rowDict[spotToAttack[0]]}${spotToAttack[1]}...`
+  
+  if (game.checkIfHit(spotToAttack, 'opponent')) {
+    outputMessage += ` and hit.`
+    if (!game.hitShip.checkIfShipIsSunk()) {
+      changeSquareColorOnOpponentAttack(spotToAttack, 'hit');
+      computer.tracker[spotToAttack] = 'hit';
+      outputMessage += ` Your turn!`;
+      computer.updateHitSpots()
+    } else {
+      turnAllSunkShipsRed(game.hitShip.getAllPositions(), 'opponent')
+      game.hitShip.getAllPositions().forEach(position => {
+        computer.tracker[position] = 'sunk';
+      })
+      outputMessage += ` Your ${game.hitShip.name} has been sunk.`
+      game.remainingPlayerShips--
+      if (game.checkIfGameOver()) {
+        outputMessage += ` Game over. Computer wins!`
+        game.state = 'gameOver'
+      } else {
+        outputMessage += ` Your turn!`
+        computer.updateHitSpots()
+      }
+    }
+  } else { 
+    computer.tracker[spotToAttack] = 'miss'
+    changeSquareColorOnOpponentAttack(spotToAttack, 'miss')
+
+    outputMessage += ` and missed. Your turn!`
+  }
 
   setTimeout(function() {
-    game.setDisplayMessage('Computer did something. Your turn!')
+    game.setDisplayMessage(outputMessage)
     game.state = 'playerTurn'
-  }, 1000)
+  }, 500)
 
 }
 
@@ -241,7 +309,7 @@ class Game {
     this.state = 'playerChoose';
     this.width = width;
     this.height = height;
-    this.computer = new Computer()
+    this.computer = new Computer(height, width)
     this.playerShips = [];
     this.opponentShips = [];
     this.remainingPlayerShips = 5;
@@ -269,15 +337,15 @@ class Game {
     this.playerSelectedSquare = false;
   }
 
-  checkIfHit(attackCoordinates, player) {
+  checkIfHit(attackCoordinates, attackingPlayer) {
     let ships, currShip, currPosition;
-    if (player === 'player') {
-      ships = this.playerShips;
-    } else {
+    if (attackingPlayer === 'player') {
       ships = this.opponentShips;
+    } else {
+      ships = this.playerShips;
     }
     for (let j = 0; j < ships.length; j++) {
-      currShip = game.opponentShips[j];
+      currShip = ships[j];
       let allPositions = Object.keys(currShip.positions);
       for (let k = 0; k < allPositions.length; k++) {
         currPosition = allPositions[k].split(',');
@@ -291,7 +359,7 @@ class Game {
     return false
   }
 
-  checkifGameOver() {
+  checkIfGameOver() {
     return (!(this.remainingPlayerShips && this.remainingOpponentShips))
   }
 
@@ -320,27 +388,105 @@ class Game {
 }
 
 class Computer {
-  constructor() {
+  constructor(height, width) {
+    this.height = height;
+    this.width = width;
+    this.hitSpots = [];
     this.tracker = initializePlayerTracker(this.height, this.width);
   }
 
   chooseRandomUnattackedSpot() {
+    console.log("TRACKER", this.tracker)
     const unattackedSpots = Object.keys(this.tracker).filter(spot => {
-      this.tracker[spot] = null
+      return this.tracker[spot] === null
+    }).map(spot => {
+      return spot.split(',')
     })
     const randomIndex = getRandomNumberBelow(unattackedSpots.length)
     return unattackedSpots[randomIndex]
   }
 
   chooseRandomHitSpot() {
-    const hitSpots = Object.keys(this.tracker).filter(spot => {
-      this.tracker[spot] = 'hit'
-    })
-    if (hitSpots.length > 0) {
-      const randomIndex = getRandomNumberBelow(hitSpots.length)
-      return hitSpots[randomIndex]
+    if (this.hitSpots.length > 0) {
+      const randomIndex = getRandomNumberBelow(this.hitSpots.length)
+      return this.hitSpots[randomIndex]
     }
     return null
+  }
+
+  chooseAttackSpotFromCenter(hitSpot) {
+
+    let row = Number(hitSpot[0]);
+    let col = Number(hitSpot[1]);
+
+    let leftOfSpot = [row, col - 1];
+    let rightOfSpot = [row, col + 1];
+    let belowSpot = [row + 1, col];
+    let aboveSpot = [row - 1, col];
+
+    let directions = ['left', 'right', 'below', 'above'];
+    let currDirection;
+
+    shuffleArray(directions);
+
+    for (let i = 0; i < directions.length; i++) {
+      currDirection = directions[i]
+      console.log(currDirection)
+      if (currDirection === 'left') {
+        if (this.tracker[leftOfSpot] === null && this.tracker[rightOfSpot] === 'hit') {
+          return leftOfSpot
+        }
+      } else if (currDirection === 'right') {
+        if (this.tracker[rightOfSpot] === null && this.tracker[leftOfSpot] === 'hit') {
+          return rightOfSpot
+        }
+      } else if (currDirection === 'below') {
+        if (this.tracker[belowSpot] === null && this.tracker[aboveSpot] === 'hit') {
+          return belowSpot
+        }
+      } else if (currDirection === 'above') {
+        if (this.tracker[aboveSpot] === null && this.tracker[belowSpot] === 'hit') {
+          return aboveSpot
+        }
+      }
+    }
+
+    for (let j = 0; j < directions.length; j++) {
+      currDirection = directions[j]
+      console.log(currDirection)
+      if (currDirection === 'left') {
+        if (this.tracker[leftOfSpot] === null) {
+          return leftOfSpot
+        }
+      }
+      if (currDirection === 'right') {
+        if (this.tracker[rightOfSpot] === null) {
+          return rightOfSpot
+        }
+      }
+      if (currDirection === 'below') {
+        if (this.tracker[belowSpot] === null) {
+          return belowSpot
+        }
+      }
+      if (currDirection === 'above') {
+        if (this.tracker[aboveSpot] === null) {
+          return aboveSpot
+        }
+      }
+    }
+
+    return null
+
+    
+  }
+
+  updateHitSpots() {
+    this.hitSpots = Object.keys(this.tracker).filter(spot => {
+      return this.tracker[spot] === 'hit'
+    }).map(spot => {
+      return spot.split(',')
+    })
   }
 
   updateSquareStatus(square, status) {
@@ -413,13 +559,13 @@ for (let i = 0; i < game.height * game.width; i++) {
 const attackOpponentButtonClickHandler = (game, attackCoordinates, square, button) => {
   game.clearPlayerSelect();
   toggleButton(button)
-  let hit = false;
+  // let hit = false;
   if (game.checkIfHit(attackCoordinates, 'player')) {
-    hit = true;
+    // hit = true;
     newMessage = `HIT on ${rowDict[attackCoordinates[0]]}${attackCoordinates[1]}!`
     if (!game.hitShip.checkIfShipIsSunk()) {
       square.style.backgroundColor = 'orange';
-      newMessage += 'Computer is thinking 🤔';
+      newMessage += ' Computer is thinking 🤔';
       game.setDisplayMessage(newMessage);
       game.state = 'computerTurn'
       setTimeout(function() {
@@ -427,13 +573,13 @@ const attackOpponentButtonClickHandler = (game, attackCoordinates, square, butto
         }, 1000)
     } else {
       turnAllSunkShipsRed(game.hitShip.getAllPositions(), 'player')
-      newMessage += ` SUNK ${game.hitShip.name.toUpperCase()}! `
+      newMessage += ` SUNK ${game.hitShip.name.toUpperCase()}!`
       game.remainingOpponentShips--
-      if (game.checkifGameOver()) {
+      if (game.checkIfGameOver()) {
         game.state = "gameOver"
         newMessage += "Game over. You win!"
       } else {
-        newMessage += 'Computer is thinking 🤔'
+        newMessage += ' Computer is thinking 🤔'
         game.state = 'computerTurn'
         setTimeout(function() {
           doComputerTurn(game)
@@ -442,7 +588,7 @@ const attackOpponentButtonClickHandler = (game, attackCoordinates, square, butto
       game.setDisplayMessage(newMessage)
     }       
   }
-  if (!hit) {
+  else {
     game.setDisplayMessage(`MISS on ${rowDict[attackCoordinates[0]]}${attackCoordinates[1]}. Computer is thinking 🤔`);
     square.style.backgroundColor = 'mediumAquaMarine';
     game.state = 'computerTurn'
