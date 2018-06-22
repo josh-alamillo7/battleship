@@ -59,6 +59,13 @@ const initializeShipPositions = (positions) => {
 
 const getRandomNumberBelow = max => Math.floor(Math.random(0, 1) * max);
 
+const shuffleArray = (array) => {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = getRandomNumberBelow(i + 1);
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
 
 const toggleButton = (button) => {
   if (button.style.display === 'none') {
@@ -183,14 +190,6 @@ const turnAllSunkShipsRed = (shipPositions, attackingPlayer) => {
   });
 };
 
-const shuffleArray = (array) => {
-  for (let i = array.length - 1; i > 0; i -= 1) {
-    const j = getRandomNumberBelow(i + 1);
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-  return array;
-};
-
 const setDisplayMessage = (message) => {
   const displayInfo = document.getElementById('displayInfo');
   displayInfo.innerHTML = message;
@@ -199,7 +198,6 @@ const setDisplayMessage = (message) => {
 const doComputerTurn = (game) => {
   let spotToAttack;
   let centerSpot;
-  let attackDirection;
   let computer = game.computer;
 
   if (computer.hitSpots.length > 0) {
@@ -211,9 +209,7 @@ const doComputerTurn = (game) => {
       if (spotToAttack === null) {
         computer.tracker[spotToAttack] = 'tried';
       } else {
-        spotToAttack = spotToAttack.map((coordinate) => {
-          return coordinate.toString();
-        });
+        spotToAttack = spotToAttack.map(coordinate => coordinate.toString());
         break;
       }
     }
@@ -224,21 +220,22 @@ const doComputerTurn = (game) => {
   let outputMessage = `Computer attacked ${rowDict[spotToAttack[0]]}${spotToAttack[1]}...`;
 
   if (game.checkIfHit(spotToAttack, 'opponent')) {
-    outputMessage += ` and hit.`
+    outputMessage += ' and hit.';
     if (!game.hitShip.checkIfShipIsSunk()) {
       changeSquareColorOnOpponentAttack(spotToAttack, 'hit');
       computer.tracker[spotToAttack] = 'hit';
-      outputMessage += ` Your turn!`;
-      computer.updateHitSpots()
+      outputMessage += ' Your turn!';
+      computer.updateHitSpots();
     } else {
       turnAllSunkShipsRed(game.hitShip.getAllPositions(), 'opponent');
       game.hitShip.getAllPositions().forEach((position) => {
         computer.tracker[position] = 'sunk';
       });
       outputMessage += ` Your ${game.hitShip.name} has been sunk.`;
-      game.remainingPlayerShips -= 1;
+      game.playerLoseShip('player');
       if (game.checkIfGameOver()) {
         outputMessage += ' Game over. Computer wins!';
+        setDisplayMessage(outputMessage);
         game.changeGameState('gameOver');
       } else {
         outputMessage += ' Your turn!';
@@ -252,10 +249,12 @@ const doComputerTurn = (game) => {
     outputMessage += ' and missed. Your turn!';
   }
 
-  setTimeout(() => {
-    setDisplayMessage(outputMessage);
-    game.changeGameState('playerTurn');
-  }, 500);
+  if (game.state !== 'gameOver') {
+    setTimeout(() => {
+      setDisplayMessage(outputMessage);
+      game.changeGameState('playerTurn');
+    }, 500);
+  }
 };
 
 const shipPlacementButtonClickHandler = (game, button) => {
