@@ -13,6 +13,11 @@ let newOpponentColumn;
 // ******************************game functions***************************
 
 const createGridView = (height, width) => {
+
+  // for each row, create a table row and add it to each grid.
+
+  // inside loop: for each column, create a td and add it to the row. Make it display the grid position. Classify it as a square corresponding to that player.
+  // initialize its color to white and make its id identify its position and which player it belongs to.
   for (let row = 0; row < height; row += 1) {
     newPlayerRow = document.createElement('tr');
     newOpponentRow = document.createElement('tr');
@@ -36,6 +41,9 @@ const createGridView = (height, width) => {
 };
 
 const initializePlayerTracker = (height, width) => {
+  // This will allow the player to keep track of the status of the opponent squares.
+  // These will all be initialized to null.
+
   const output = {};
 
   for (let row = 0; row < height; row += 1) {
@@ -48,6 +56,9 @@ const initializePlayerTracker = (height, width) => {
 };
 
 const initializeShipPositions = (positions) => {
+  // positions is an Array. Return an object containing each position for that ship initialized to "true", which will become the tracker for each player's
+  // ship positions.
+
   const output = {};
 
   positions.forEach((position) => {
@@ -68,6 +79,7 @@ const shuffleArray = (array) => {
 };
 
 const toggleButton = (button) => {
+
   if (button.style.display === 'none') {
     button.style.display = 'block';
   } else {
@@ -76,6 +88,10 @@ const toggleButton = (button) => {
 };
 
 const checkForCorrectConfiguration = (positions) => {
+
+  // positions is an array of positions. Each position is an array with two elements.
+
+  // it's impossible for the same position to be selected twice. Sort by row, ascending. If the row is the same, sort by column.
   positions.sort((a, b) => {
     if (a[0] !== b[0]) {
       return a[0] - b[0];
@@ -84,6 +100,16 @@ const checkForCorrectConfiguration = (positions) => {
   });
 
   let pointer = 0;
+
+  // in the if: check if the first two positions are in the same row. If they are, initialize a pointer to the first position and check if the
+  // next position in the array is in the same row and one column higher. If any of them are not, return false.
+  // Repeat this process until we reach the second to last position. If we haven't returned false, return true.
+
+  // else if: check if the first two positions are in the same column. If they are, initialize a pointer to the first position and check
+  // if the next position in the array is in the same column and one row higher. If any of them are not, return false.
+  // Repeat this process until we reach the second to last position. If we haven't returned false, return true.
+
+
 
   if (positions[0][0] === positions[1][0]) {
     while (pointer < positions.length - 1) {
@@ -105,10 +131,13 @@ const checkForCorrectConfiguration = (positions) => {
     return true;
   }
 
+  //if the first two positions weren't in the same row *or* column, return false.
+
   return false;
 };
 
 const constructComputerShips = (game) => {
+
   const shipSizes = [5, 4, 3, 3, 2];
   const directionArray = ['horizontal', 'vertical'];
   const filledCache = {};
@@ -117,6 +146,18 @@ const constructComputerShips = (game) => {
   let potentialCoordinates;
   let randomRow;
   let randomColumn;
+
+  // for each of the five ships needed, first choose whether it will be vertical or horizontal.
+
+  // if horizontal: do the following while you haven't found an available position for the current ship size:
+    //choose a random row.
+    //choose a random column between 0 and the grid width - ship size.
+    //assign these coordinates to an array.
+    //initialize a potential coordinates array;
+      //check each position starting at the initial coordinates and traversing right to check if it is in filled cache.
+      //if any of them are in filled cache(meaning a ship already has that position), do not add the ship and go back to the start of the while loop.
+      //if none of them are in filled cache, add the ship to the opponent grid.
+      //Add all the coordinates to filled cache to be used by future ships.
 
   shipSizes.forEach((size, index) => {
     const randomDirection = directionArray[getRandomNumberBelow(2)];
@@ -166,6 +207,8 @@ const constructComputerShips = (game) => {
 };
 
 const changeSquareColorOnOpponentAttack = (coordinates, result) => {
+  //changes player square color to either blue or orange after the opponent attacks.
+
   const square = document.getElementById(`P${coordinates.join(',')}`);
 
   if (result === 'miss') {
@@ -176,6 +219,10 @@ const changeSquareColorOnOpponentAttack = (coordinates, result) => {
 };
 
 const turnAllSunkShipsRed = (shipPositions, attackingPlayer) => {
+
+  // this function is triggered when a player's ship is sunk. Takes in coordinates and an attacking player and changes
+  // each coordinate's corresponding square to a red color.
+
   let firstCharId;
   let sunkSquare;
   if (attackingPlayer === 'player') {
@@ -196,40 +243,62 @@ const setDisplayMessage = (message) => {
 };
 
 const doComputerTurn = (game) => {
+
   let spotToAttack;
   let centerSpot;
   let computer = game.computer;
 
+  //the computer first checks if there are any spots it has hit that correspond to a ship that is not yet sunk.
+
   if (computer.hitSpots.length > 0) {
+
+    //if there is a non-sunk hit spot, it shuffles all hit spots.
     shuffleArray(computer.hitSpots);
 
     for (let i = 0; i < computer.hitSpots.length; i += 1) {
+      //for each hit spot in the array:
       centerSpot = computer.hitSpots[i];
+      //assign it to be the center spot.
       spotToAttack = game.computer.chooseAttackSpotFromCenter(centerSpot);
-      if (spotToAttack === null) {
-        computer.tracker[spotToAttack] = 'tried';
-      } else {
+      //choose a random direction from that center spot and assign it to "spot to attack"
+      if (spotToAttack !== null) {
         spotToAttack = spotToAttack.map(coordinate => coordinate.toString());
         break;
       }
     }
   } else {
+    //if there are no spots that are hit and not sunk, the computer will just choose a random unattacked spot.
     spotToAttack = game.computer.chooseRandomUnattackedSpot();
   }
 
   let outputMessage = `Computer attacked ${rowDict[spotToAttack[0]]}${spotToAttack[1]}...`;
 
+  // now that the computer has chosen an attack to spot, the game checks if the attack is a hit.
+    // if it's a hit, check if the ship is sunk.
+      // if the ship is not sunk, make the square orange. Have the computer add the new hit spot to its tracker.
+      // if the ship is sunk:
+        // Turn all the player ship's positions red
+        // update the computer tracker to know all these shipts are sunk.
+        // have the player lose the ship.
+        // check if the game is over.
+          // if the game is over, change the game's state to game over.
+        // if the game is not over, remove al lthe sunk ships from computer's sunk ships.
+
+    // no matter how long the computer takes, do a set timeout for half a second so the player has time to see the message, then change the state 
+    // to player turn.
+
+
   if (game.checkIfHit(spotToAttack, 'opponent')) {
     outputMessage += ' and hit.';
     if (!game.hitShip.checkIfShipIsSunk()) {
       changeSquareColorOnOpponentAttack(spotToAttack, 'hit');
-      computer.tracker[spotToAttack] = 'hit';
+      computer.updateSquareStatus(spotToAttack, 'hit');
       outputMessage += ' Your turn!';
       computer.updateHitSpots();
     } else {
       turnAllSunkShipsRed(game.hitShip.getAllPositions(), 'opponent');
       game.hitShip.getAllPositions().forEach((position) => {
-        computer.tracker[position] = 'sunk';
+        computer.updateSquareStatus(position, 'sunk')
       });
       outputMessage += ` Your ${game.hitShip.name} has been sunk.`;
       game.playerLoseShip('player');
@@ -243,7 +312,7 @@ const doComputerTurn = (game) => {
       }
     }
   } else {
-    computer.tracker[spotToAttack] = 'miss';
+    computer.updateSquareStatus(spotToAttack, 'miss');
     changeSquareColorOnOpponentAttack(spotToAttack, 'miss');
 
     outputMessage += ' and missed. Your turn!';
@@ -258,6 +327,10 @@ const doComputerTurn = (game) => {
 };
 
 const shipPlacementButtonClickHandler = (game, button) => {
+
+  //take in a game and do something based on the ships currently placed.
+
+  //positionsMap converts the game's "spots selected" property into an array appropriate for the function to use.
   const positionsMap = game.spotsSelected.map((position) => {
     const splitPosition = position.split(',');
     splitPosition[0] = Number(splitPosition[0]);
@@ -265,6 +338,16 @@ const shipPlacementButtonClickHandler = (game, button) => {
     return splitPosition;
   });
   const numberShipsPlaced = game.getNumberShipsPlaced();
+
+  //we take this positions map and check for correct configuration. If it's not correct, the game displays that to the user and does nothing.
+
+  //if the configuration is correct:
+    // we turn all the spots gray on the player's grid.
+    // we add the ship to the player's collections of ships
+    // we reset the spots selected
+    // if the number of ships placed after this is 5, we move on to constructing the computer's ships and make it the player's turn.
+    // otherwise, we tell the player to choose their next ship.
+  //whether or not the ship was placed, the button disappears after it's clicked.
 
   if (!checkForCorrectConfiguration(positionsMap)) {
     setDisplayMessage(`Incorrect configuration. The ${shipsPlacedToInfoMap[numberShipsPlaced].name} needs 
@@ -287,6 +370,17 @@ const shipPlacementButtonClickHandler = (game, button) => {
 };
 
 const attackOpponentButtonClickHandler = (game, attackCoordinates, square, button) => {
+
+  // when we attack the opponent, the button disappears and the player's selected square is cleared.
+
+  //the game checks if it's a hit.
+    //if it is, it then checks if the ship is sunk.
+      //if it's not sunk, it turns orange and moves on to the computer's turn after 1 second.
+      //if it's sunk, we turn all sunk ships red and have the opponent lose a ship.
+        //we check if the game is over. If it is, we set the state to game over, otherwise, we move on to the computer's turn.
+    //if it's not a hit, we turn the square blue and move on to the opponent's turn.
+
+
   game.clearPlayerSelect();
   toggleButton(button);
   // let hit = false;
@@ -336,6 +430,7 @@ class Ship {
   }
 
   checkIfShipIsSunk() {
+    //(true means the position is hit). Checks all positions belong to that ship and checks if they're all hit.
     let currPosition;
     const allPositions = Object.keys(this.positions);
     for (let position = 0; position < allPositions.length; position += 1) {
@@ -352,6 +447,7 @@ class Ship {
   }
 
   positionHit(position) {
+    //go to the ship's positions, find the one that's hit and set it to false.
     this.positions[position] = false;
   }
 }
@@ -365,12 +461,15 @@ class Computer {
   }
 
   chooseRandomUnattackedSpot() {
+    //computer finds all spots that are null(meaning they haven't been attacked)
+    //chooses a random spot and returns it.
     const unattackedSpots = Object.keys(this.tracker).filter(spot => this.tracker[spot] === null).map(spot => spot.split(','));
     const randomIndex = getRandomNumberBelow(unattackedSpots.length);
     return unattackedSpots[randomIndex];
   }
 
   chooseRandomHitSpot() {
+    //computer chooses a random spot that it knows is hit but not sunk.
     if (this.hitSpots.length > 0) {
       const randomIndex = getRandomNumberBelow(this.hitSpots.length);
       return this.hitSpots[randomIndex];
@@ -391,6 +490,16 @@ class Computer {
     let currDirection;
 
     shuffleArray(directions);
+
+    // given a spot that's already hit, test all four directions from that hit spot in a random order.
+    // For each direction:
+      // if the spot in that direction has not been hit and the spot in the opposite direction HAS, return that spot.
+
+    //If we go through all four directions and none of them satisfy this condition...
+
+    //choose a random direction and check if it is hit. If it's not, return that spot.
+
+    //if there are no available spots, return null. We can't attack adjacent to this hit spot. (this should never happen)
 
     for (let i = 0; i < directions.length; i += 1) {
       currDirection = directions[i];
@@ -441,6 +550,7 @@ class Computer {
   }
 
   updateHitSpots() {
+    //used when we change the computer's tracker. It removes all spots in hitSpots(an array) that are no longer marked as 'hit'
     this.hitSpots = Object.keys(this.tracker).filter(spot => this.tracker[spot] === 'hit').map(spot => spot.split(','));
   }
 
@@ -466,6 +576,8 @@ class Game {
   }
 
   addNewShip(coordinates, player, name) {
+    //creates a new ship object and adds it to that player's ships.
+
     const newShip = new Ship(coordinates, name);
     if (player === 'player') {
       this.playerShips.push(newShip);
@@ -475,12 +587,19 @@ class Game {
   }
 
   clearPlayerSelect() {
+    //all properties that keep track of whether the player has selected a square are cleared.
+
     this.playerSelect.coordinates = null;
     this.playerSelect.square = null;
     this.playerSelectedSquare = false;
   }
 
   checkIfHit(attackCoordinates, attackingPlayer) {
+    // scans the player's ships
+      // for each ship, all positions are checked to see if they match the attack coordinates.
+      // if it's a hit, we save the hit ship onto a property of game, then return true.
+      // if it's not, we return false.
+
     let ships;
     let currShip;
     let currPosition;
@@ -505,6 +624,7 @@ class Game {
   }
 
   checkIfGameOver() {
+    //if either player has no ships left, we return true.
     return (!(this.remainingPlayerShips && this.remainingOpponentShips));
   }
 
@@ -556,6 +676,13 @@ setDisplayMessage('Choose your carrier placement (Pick 5)');
 
 // player square click logic
 for (let i = 0; i < game.height * game.width; i += 1) {
+
+  //when a player clicks a square on their own grid
+    //if the state is player choose:
+      //if the player needs to pick more spots for their current ship ahd spot they clicked on is white,
+      //add the square id to spots selected and change the BG color to green.
+      //if the number of spots the player chose + 1 equals the spots for the ship required, toggle the button off.
+
   const square = playerSquares[i];
   square.addEventListener('click', () => {
     if (game.state === 'playerChoose') {
@@ -584,6 +711,10 @@ for (let i = 0; i < game.height * game.width; i += 1) {
 // computer square click logic
 
 for (let i = 0; i < game.height * game.width; i += 1) {
+
+  //when you click on a computer square:
+    //if the square is green, effectively deselect it and detoggle the button.
+    //Otherwise, if it's white and it's the player's turn, if the player has not already selected a square, select the square.
   let square = computerSquares[i];
   square.addEventListener('click', () => {
     if (square.style.backgroundColor === 'green') {
